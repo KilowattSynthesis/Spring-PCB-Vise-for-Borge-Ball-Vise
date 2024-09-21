@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Literal
 
 import build123d as bd
 
@@ -14,8 +15,8 @@ big_plate_t = 2
 big_plate_border_w = 22
 
 # M8 specs
-nut_flats_width = 13 + 0.2
-nut_height = 8
+m8_nut_flats_width = 13 + 0.2
+m8_nut_height = 8
 
 
 # Rail must fit within the spring, but should be a rectangle.
@@ -32,6 +33,15 @@ rail_pillar_d = rail_d * 0.75
 rail_pillar_screw_d = 3.2
 rail_pillar_nut_w = 5.5  # M3
 rail_pillar_nut_h = 4
+
+jaw_to_rail_interference = 0.5
+jaw_width_y = 50
+jaw_height_z = 20
+jaw_thickness_x = 10
+jaw_min_thickness = 3
+
+jaw_pcb_thickness = 1.6 * 1.4
+jaw_pcb_dist_from_top = 2
 
 
 def cad_rail_body():
@@ -134,6 +144,123 @@ def cad_rail_plate():
     return rail_plate
 
 
+def cad_make_vise_jaw(jaw_mode: Literal["m3", "m8", "backstop"]):
+    """Make a jaw with a hole in it."""
+    jaw = bd.Part()
+
+    if jaw_mode == "m3":
+        hole_d = 3.2
+        grip_length_x = hole_d + 7
+        nut_flats_width = None
+        nut_height = None
+        grip_height_z = 8
+    elif jaw_mode == "m8":
+        hole_d = 8.3
+        grip_length_x = hole_d + 10
+        nut_flats_width = m8_nut_flats_width
+        nut_height = m8_nut_height
+        grip_height_z = nut_height + 6
+    elif jaw_mode == "backstop":
+        hole_d = 8.3
+        grip_length_x = hole_d + 10
+        nut_flats_width = m8_nut_flats_width
+        nut_height = m8_nut_height
+        grip_height_z = nut_height + 6
+    else:
+        raise ValueError(f"Unknown jaw_mode={jaw_mode}")
+
+    print(f"Making jaw for hole_d={hole_d}, {grip_length_x=}")
+
+    # Above-the-rail jaw.
+    if jaw_mode != "backstop":
+        jaw += bd.Box(
+            jaw_thickness_x,
+            jaw_width_y,
+            jaw_height_z,
+            align=(bd.Align.MIN, bd.Align.CENTER, bd.Align.MIN),
+        )
+
+    # Above-the-rail nut hole.
+    jaw += bd.Box(
+        grip_length_x,
+        m8_nut_flats_width + 2 * 5,
+        grip_height_z,
+        align=(bd.Align.MAX, bd.Align.CENTER, bd.Align.MIN),
+    )
+
+    # Below-the-rail jaw.
+    jaw += bd.Box(
+        grip_length_x + (jaw_thickness_x if jaw_mode != "backstop" else 0),
+        rail_d + 2 * (jaw_min_thickness + jaw_to_rail_interference + 5),
+        rail_thickness_z + jaw_min_thickness,
+        align=(bd.Align.MAX, bd.Align.CENTER, bd.Align.MAX),
+    ).translate(
+        (
+            (jaw_thickness_x if jaw_mode != "backstop" else 0),
+            0,
+            jaw.faces().sort_by(bd.Axis.Z)[0].center().Z,
+        )
+    )
+
+    # Round everything, except the clamping face (for printing and clamping purposes).
+    edge_list = jaw.edges() - jaw.faces().sort_by(bd.Axis.X)[-1].edges()
+    jaw = jaw.fillet(
+        radius=jaw.max_fillet(edge_list=edge_list, max_iterations=100),
+        edge_list=list(edge_list),
+    )
+
+    # Remove the rail hole.
+    rail_cyl = bd.Cylinder(
+        radius=rail_d / 2 + jaw_to_rail_interference,
+        height=rail_length_x,
+        rotation=(0, 90, 0),
+    )
+    rail_intersect = bd.Box(
+        rail_length_x, rail_d * 3, rail_thickness_z + jaw_to_rail_interference * 2
+    )
+    rail = rail_cyl & rail_intersect
+    rail_bottom_z = jaw.faces().sort_by(bd.Axis.Z)[0].center().Z + jaw_min_thickness
+    jaw -= rail.translate(
+        (
+            0,
+            0,
+            rail_bottom_z + rail_thickness_z / 2,
+        )
+    )
+
+    # Remove the bolt hole.
+    jaw -= bd.Cylinder(
+        radius=hole_d / 2,
+        height=1000,
+        align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN),
+    ).translate((-grip_length_x / 2, 0, rail_bottom_z))
+
+    if nut_flats_width:
+        # Remove the nut hole.
+        jaw -= bd.extrude(
+            bd.RegularPolygon(
+                radius=nut_flats_width / 2, side_count=6, major_radius=False
+            ),
+            amount=nut_height,
+        ).translate((-grip_length_x / 2, 0, rail_bottom_z + rail_thickness_z))
+
+    # Remove the PCB clamping bits.
+    jaw -= bd.Box(
+        jaw_pcb_thickness,
+        jaw_width_y,
+        jaw_pcb_thickness,
+        rotation=(0, 45, 0),
+    ).translate(
+        (
+            jaw.faces().sort_by(bd.Axis.X)[-1].center().X,
+            0,
+            jaw.faces().sort_by(bd.Axis.Z)[-1].center().Z - jaw_pcb_dist_from_top,
+        )
+    )
+
+    return jaw
+
+
 def assemble_entire_unit():
     """Combine the rail and the plate."""
     rail = cad_rail_body()
@@ -143,11 +270,23 @@ def assemble_entire_unit():
     return part
 
 
+def demo_all_jaws():
+    part = bd.Part()
+    for i, jaw_mode in enumerate(["m3", "m8", "backstop"], -1):
+        part += cad_make_vise_jaw(jaw_mode).translate((0, i * (jaw_width_y + 10), 0))
+
+    return part
+
+
 if __name__ == "__main__":
     parts = {
         "rail": cad_rail_body(),
         "rail_plate": cad_rail_plate(),
+        "vise_jaw_m3": cad_make_vise_jaw("m3"),
+        "vise_jaw_m8": cad_make_vise_jaw("m8"),
+        "vise_jaw_backstop": cad_make_vise_jaw("backstop"),
         "entire_unit": assemble_entire_unit(),
+        "demo_all_jaws": demo_all_jaws(),
     }
 
     if not os.getenv("CI"):
@@ -156,7 +295,11 @@ if __name__ == "__main__":
         print("Showing CAD model(s)")
         # show(parts["rail"])
         # show(parts["rail_plate"])
-        show(parts["entire_unit"])
+        # show(parts["entire_unit"])
+        # show(parts["vise_jaw_m3"])
+        # show(parts["vise_jaw_m8"])
+        # show(parts["vise_jaw_backstop"])
+        show(parts["demo_all_jaws"])
 
     (export_folder := Path(__file__).parent.with_name("build")).mkdir(exist_ok=True)
     for name, part in parts.items():
