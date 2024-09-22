@@ -42,6 +42,7 @@ jaw_min_thickness = 3
 
 jaw_pcb_thickness = 1.6 * 1.4
 jaw_pcb_dist_from_top = 2
+jaw_meat_above_nut_thickness = 4
 
 
 def cad_rail_body():
@@ -110,6 +111,7 @@ def cad_rail_plate():
             rail_plate_t,
             align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MAX),
         )
+        # TODO: Add side-rails to the plate to increase strength.
         # Fillet the ends.
         bd.fillet(
             list(rail_plate_base.edges().filter_by(bd.Axis.Z)),
@@ -144,9 +146,18 @@ def cad_rail_plate():
     return rail_plate
 
 
-def cad_make_vise_jaw(jaw_mode: Literal["m3", "m8", "backstop"]):
-    """Make a jaw with a hole in it."""
-    jaw = bd.Part()
+def cad_make_vise_jaw(jaw_mode: Literal["m3", "m8", "backstop", "no_hole"]):
+    """Make a jaw with a hole in it.
+
+    Args:
+    ----
+        jaw_mode: Literal["m3", "m8", "backstop", "no_hole"]
+            m3 = M3 hole, no nut.
+            m8 = M8 hole, with nut.
+            backstop = M8 hole, with nut. Meant to be used as a backstop
+                against the spring. No wide jaw.
+            no_hole = No hole, just a jaw.
+    """
 
     if jaw_mode == "m3":
         hole_d = 3.2
@@ -159,17 +170,25 @@ def cad_make_vise_jaw(jaw_mode: Literal["m3", "m8", "backstop"]):
         grip_length_x = hole_d + 10
         nut_flats_width = m8_nut_flats_width
         nut_height = m8_nut_height
-        grip_height_z = nut_height + 6
+        grip_height_z = nut_height + jaw_meat_above_nut_thickness
     elif jaw_mode == "backstop":
         hole_d = 8.3
         grip_length_x = hole_d + 10
         nut_flats_width = m8_nut_flats_width
         nut_height = m8_nut_height
-        grip_height_z = nut_height + 6
+        grip_height_z = nut_height + jaw_meat_above_nut_thickness
+    elif jaw_mode == "no_hole":
+        hole_d = 0
+        grip_length_x = 5
+        nut_flats_width = None
+        nut_height = None
+        grip_height_z = 8
     else:
         raise ValueError(f"Unknown jaw_mode={jaw_mode}")
 
-    print(f"Making jaw for hole_d={hole_d}, {grip_length_x=}")
+    print(f"Making jaw for {jaw_mode=}, hole_d={hole_d}, {grip_length_x=}")
+
+    jaw = bd.Part()
 
     # Above-the-rail jaw.
     if jaw_mode != "backstop":
@@ -181,12 +200,13 @@ def cad_make_vise_jaw(jaw_mode: Literal["m3", "m8", "backstop"]):
         )
 
     # Above-the-rail nut hole.
-    jaw += bd.Box(
-        grip_length_x,
-        m8_nut_flats_width + 2 * 5,
-        grip_height_z,
-        align=(bd.Align.MAX, bd.Align.CENTER, bd.Align.MIN),
-    )
+    if grip_length_x:
+        jaw += bd.Box(
+            grip_length_x,
+            m8_nut_flats_width + 2 * 5,
+            grip_height_z,
+            align=(bd.Align.MAX, bd.Align.CENTER, bd.Align.MIN),
+        )
 
     # Below-the-rail jaw.
     jaw += bd.Box(
@@ -272,7 +292,7 @@ def assemble_entire_unit():
 
 def demo_all_jaws():
     part = bd.Part()
-    for i, jaw_mode in enumerate(["m3", "m8", "backstop"], -1):
+    for i, jaw_mode in enumerate(["m3", "m8", "backstop", "no_hole"], -1):
         part += cad_make_vise_jaw(jaw_mode).translate((0, i * (jaw_width_y + 10), 0))
 
     return part
@@ -285,6 +305,7 @@ if __name__ == "__main__":
         "vise_jaw_m3": cad_make_vise_jaw("m3"),
         "vise_jaw_m8": cad_make_vise_jaw("m8"),
         "vise_jaw_backstop": cad_make_vise_jaw("backstop"),
+        "vise_jaw_no_hole": cad_make_vise_jaw("no_hole"),
         "entire_unit": assemble_entire_unit(),
         "demo_all_jaws": demo_all_jaws(),
     }

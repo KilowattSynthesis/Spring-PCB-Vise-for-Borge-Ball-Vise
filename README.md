@@ -8,6 +8,7 @@ An easy-to-use, parametric, spring PCB vice for the [Chris Borge ball vise](http
     * [AliExpress Link](https://www.aliexpress.com/item/1005006090579821.html)
 * 1x M8x16mm bolt. Will be finger-tightened during operation, so wing bolt or external hex head is preferred.
     * [AliExpress Link](https://www.aliexpress.com/item/4000226223259.html)
+    * Any length from 16mm to about 30mm should work.
 * 1x Spring
     * Diameter: 20mm.
     * Optimal coil thickness: 1mm.
