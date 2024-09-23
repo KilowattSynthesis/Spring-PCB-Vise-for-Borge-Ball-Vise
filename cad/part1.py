@@ -30,9 +30,9 @@ rail_plate_w = 40
 
 rail_pillar_d = rail_d * 0.75
 
-rail_pillar_screw_d = 3.2
-rail_pillar_nut_w = 5.5  # M3
-rail_pillar_nut_h = 4
+rail_pillar_screw_d = 3.5
+rail_pillar_nut_w = 5.5 + 0.7  # M3
+rail_pillar_nut_h = 8  # Go up into the body to support shorter bolts.
 
 jaw_to_rail_interference = 0.2
 jaw_width_y = 50
@@ -43,6 +43,18 @@ jaw_min_thickness = 3
 jaw_pcb_thickness = 4
 jaw_pcb_dist_from_top = 3
 jaw_meat_above_nut_thickness = 4
+
+
+def validate():
+    nut_t = 3
+    rail_pillar_nut_meat = rail_raise_dist_z + rail_plate_t - rail_pillar_nut_h
+    assert rail_pillar_nut_meat > nut_t, f"rail_pillar_nut_meat={rail_pillar_nut_meat}"
+
+    print(
+        "Min and max M3 screw length: "
+        f"min={jaw_meat_above_nut_thickness + nut_t + rail_thickness_z:.2f}mm, "
+        f"max={rail_raise_dist_z + rail_plate_t + rail_thickness_z:.2f}mm"
+    )
 
 
 def cad_rail_body():
@@ -299,6 +311,8 @@ def demo_all_jaws():
 
 
 if __name__ == "__main__":
+    validate()
+
     parts = {
         "rail": cad_rail_body(),
         "rail_plate": cad_rail_plate(),
@@ -315,12 +329,12 @@ if __name__ == "__main__":
 
         print("Showing CAD model(s)")
         # show(parts["rail"])
-        # show(parts["rail_plate"])
+        show(parts["rail_plate"])
         # show(parts["entire_unit"])
         # show(parts["vise_jaw_m3"])
         # show(parts["vise_jaw_m8"])
         # show(parts["vise_jaw_backstop"])
-        show(parts["demo_all_jaws"])
+        # show(parts["demo_all_jaws"])
 
     (export_folder := Path(__file__).parent.with_name("build")).mkdir(exist_ok=True)
     for name, part in parts.items():
