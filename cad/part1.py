@@ -34,14 +34,14 @@ rail_pillar_screw_d = 3.2
 rail_pillar_nut_w = 5.5  # M3
 rail_pillar_nut_h = 4
 
-jaw_to_rail_interference = 0.5
+jaw_to_rail_interference = 0.2
 jaw_width_y = 50
 jaw_height_z = 20
 jaw_thickness_x = 10
 jaw_min_thickness = 3
 
-jaw_pcb_thickness = 1.6 * 1.4
-jaw_pcb_dist_from_top = 2
+jaw_pcb_thickness = 4
+jaw_pcb_dist_from_top = 3
 jaw_meat_above_nut_thickness = 4
 
 
@@ -302,9 +302,9 @@ if __name__ == "__main__":
     parts = {
         "rail": cad_rail_body(),
         "rail_plate": cad_rail_plate(),
-        "vise_jaw_m3": cad_make_vise_jaw("m3"),
+        # "vise_jaw_m3": cad_make_vise_jaw("m3"),
         "vise_jaw_m8": cad_make_vise_jaw("m8"),
-        "vise_jaw_backstop": cad_make_vise_jaw("backstop"),
+        # "vise_jaw_backstop": cad_make_vise_jaw("backstop"),
         "vise_jaw_no_hole": cad_make_vise_jaw("no_hole"),
         "entire_unit": assemble_entire_unit(),
         "demo_all_jaws": demo_all_jaws(),
