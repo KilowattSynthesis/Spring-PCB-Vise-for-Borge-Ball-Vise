@@ -119,7 +119,6 @@ def cad_rail_plate():
                 bd.Align.CENTER,
                 bd.Align.MAX,
             ),
-            # TODO: round the top-size of this cylinder.
         ).translate(
             (
                 (rail_length_x - rail_pillar_d) / 2 * i,
@@ -195,8 +194,7 @@ def cad_rail_plate():
             ).translate(hole_loc_vector)
         )
 
-    # Remove some random screw holes.
-    # TODO
+    # TODO: Remove some random screw holes.
 
     return rail_plate
 
