@@ -4,7 +4,14 @@ from typing import Literal
 
 import build123d as bd
 
-# from . import calc
+
+if not os.getenv("CI"):
+    from ocp_vscode import show
+else:
+
+    def show(*args, **kwargs):
+        pass
+
 
 # Constants
 spring_d = 20
@@ -27,6 +34,8 @@ rail_length_x = 220
 
 rail_plate_t = 4
 rail_plate_w = 40
+rail_plate_wall_thickness = 3
+rail_plate_wall_height_z = 3
 
 rail_pillar_d = rail_d * 0.75
 
@@ -48,7 +57,9 @@ jaw_meat_above_nut_thickness = 4
 def validate():
     nut_t = 3
     rail_pillar_nut_meat = rail_raise_dist_z + rail_plate_t - rail_pillar_nut_h
-    assert rail_pillar_nut_meat > nut_t, f"rail_pillar_nut_meat={rail_pillar_nut_meat}"
+    assert (
+        rail_pillar_nut_meat > nut_t
+    ), f"rail_pillar_nut_meat={rail_pillar_nut_meat}"
 
     print(
         "Min and max M3 screw length: "
@@ -59,7 +70,9 @@ def validate():
 
 def cad_rail_body():
     """Make the rail, the vertical end pieces, and the horizontal plate underneath."""
-    rail_cyl = bd.Cylinder(radius=rail_d / 2, height=rail_length_x, rotation=(0, 90, 0))
+    rail_cyl = bd.Cylinder(
+        radius=rail_d / 2, height=rail_length_x, rotation=(0, 90, 0)
+    )
     rail_intersect = bd.Box(rail_length_x, rail_d * 3, rail_thickness_z)
 
     # Make the long X part.
@@ -117,19 +130,44 @@ def cad_rail_plate():
 
     # Add the horizontal rail plate.
     with bd.BuildPart() as rail_plate_base:
-        bd.Box(
-            rail_length_x,
-            rail_plate_w,
-            rail_plate_t,
-            align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MAX),
+        with bd.BuildSketch() as sketch:
+            bd.Rectangle(
+                rail_length_x,
+                rail_plate_w,
+            )
+            bd.fillet(sketch.vertices(), radius=rail_plate_w * 0.4)
+        bd.extrude(amount=-rail_plate_t)
+
+    # Add rounded rim around the plate.
+    # rail_plate += bd.sweep(
+    #     sections=bd.Circle(radius=5).rotate(axis=bd.Axis.X, angle=90),
+    #     path=rail_plate_base.part.faces().sort_by(bd.Axis.Z)[-1].edges(),
+    # )
+
+    rail_plate_base_top_face = rail_plate_base.faces().sort_by(bd.Axis.Z)[-1]
+    rail_plate_base = rail_plate_base.part + (
+        bd.extrude(
+            rail_plate_base_top_face,
+            amount=rail_plate_wall_height_z,
         )
-        # TODO: Add side-rails to the plate to increase strength.
-        # Fillet the ends.
-        bd.fillet(
-            list(rail_plate_base.edges().filter_by(bd.Axis.Z)),
-            radius=rail_plate_w * 0.4,
+        - bd.extrude(
+            bd.offset(
+                rail_plate_base_top_face, amount=-rail_plate_wall_thickness
+            ),
+            amount=rail_plate_wall_height_z,
         )
-    rail_plate += rail_plate_base.part.translate(
+    )
+
+    # Round all faces, except the bottom face.
+    rail_plate_base = rail_plate_base.fillet(
+        radius=rail_plate_base.max_fillet(
+            edge_list=rail_plate_base.edges(), max_iterations=100
+        ),
+        edge_list=rail_plate_base.edges()
+        - rail_plate_base.faces().sort_by(bd.Axis.Z)[0].edges(),
+    )
+
+    rail_plate += rail_plate_base.translate(
         (0, 0, rail_bottom_z - rail_raise_dist_z)
     )
 
@@ -149,11 +187,16 @@ def cad_rail_plate():
             # Add the nut holder.
             bd.extrude(
                 bd.RegularPolygon(
-                    radius=rail_pillar_nut_w / 2, side_count=6, major_radius=False
+                    radius=rail_pillar_nut_w / 2,
+                    side_count=6,
+                    major_radius=False,
                 ),
                 amount=rail_pillar_nut_h,
             ).translate(hole_loc_vector)
         )
+
+    # Remove some random screw holes.
+    # TODO
 
     return rail_plate
 
@@ -248,10 +291,14 @@ def cad_make_vise_jaw(jaw_mode: Literal["m3", "m8", "backstop", "no_hole"]):
         rotation=(0, 90, 0),
     )
     rail_intersect = bd.Box(
-        rail_length_x, rail_d * 3, rail_thickness_z + jaw_to_rail_interference * 2
+        rail_length_x,
+        rail_d * 3,
+        rail_thickness_z + jaw_to_rail_interference * 2,
     )
     rail = rail_cyl & rail_intersect
-    rail_bottom_z = jaw.faces().sort_by(bd.Axis.Z)[0].center().Z + jaw_min_thickness
+    rail_bottom_z = (
+        jaw.faces().sort_by(bd.Axis.Z)[0].center().Z + jaw_min_thickness
+    )
     jaw -= rail.translate(
         (
             0,
@@ -286,7 +333,8 @@ def cad_make_vise_jaw(jaw_mode: Literal["m3", "m8", "backstop", "no_hole"]):
         (
             jaw.faces().sort_by(bd.Axis.X)[-1].center().X,
             0,
-            jaw.faces().sort_by(bd.Axis.Z)[-1].center().Z - jaw_pcb_dist_from_top,
+            jaw.faces().sort_by(bd.Axis.Z)[-1].center().Z
+            - jaw_pcb_dist_from_top,
         )
     )
 
@@ -305,7 +353,9 @@ def assemble_entire_unit():
 def demo_all_jaws():
     part = bd.Part()
     for i, jaw_mode in enumerate(["m3", "m8", "backstop", "no_hole"], -1):
-        part += cad_make_vise_jaw(jaw_mode).translate((0, i * (jaw_width_y + 10), 0))
+        part += cad_make_vise_jaw(jaw_mode).translate(
+            (0, i * (jaw_width_y + 10), 0)
+        )
 
     return part
 
@@ -336,7 +386,9 @@ if __name__ == "__main__":
         # show(parts["vise_jaw_backstop"])
         # show(parts["demo_all_jaws"])
 
-    (export_folder := Path(__file__).parent.with_name("build")).mkdir(exist_ok=True)
+    (export_folder := Path(__file__).parent.with_name("build")).mkdir(
+        exist_ok=True
+    )
     for name, part in parts.items():
         bd.export_stl(part, str(export_folder / f"{name}.stl"))
         bd.export_step(part, str(export_folder / f"{name}.step"))

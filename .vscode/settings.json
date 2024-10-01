@@ -10,6 +10,7 @@
         "editor.tabSize": 4,
         "editor.insertSpaces": true,
         "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.rulers": [79],
         "python.languageServer": "Pylance",
         "python.analysis.typeCheckingMode": "basic",
     },
